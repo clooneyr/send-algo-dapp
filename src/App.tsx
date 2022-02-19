@@ -88,14 +88,12 @@ function App() {
         </Typography>
         <form className={classes.form} onSubmit={onSubmit}>
           <div>
-            {/* <label htmlFor="firstname">First Name</label> */}
             <TextField {...register("receiverAddr", { required: true })} name="receiverAddr" margin="normal" label="Receiver Address" autoFocus variant="outlined" fullWidth type="text" />
             {
               errors.receiverAddr && <div className="error"> Enter Receiver Address</div>
             }
           </div>
           <div>
-            {/* <label htmlFor="age">Age</label> */}
             <TextField {...register("amount", { required: true })} name="amount" label="Amount" margin="normal" variant="outlined" fullWidth type="text" />
             {
               errors.amount && <div className="error"> Enter amount </div>
