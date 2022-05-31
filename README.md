@@ -1,4 +1,4 @@
-# React App Using MyAlgo Connect
+# React App Using Wallet Connect
 
 Simple app that allows users to connect their wallet and transfer ALGO's over the algorand blockchain. 🧑‍🚀
 
