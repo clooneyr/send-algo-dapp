@@ -10,6 +10,9 @@ import Typography from '@material-ui/core/Typography';
 import { makeStyles } from '@material-ui/core/styles';
 import Container from '@material-ui/core/Container';
 import './App.css';
+import WalletConnect from "@walletconnect/client";
+import QRCodeModal from "algorand-walletconnect-qrcode-modal";
+import { formatJsonRpcRequest } from "@json-rpc-tools/utils";
 
 type Profile = {
   receiverAddr: string
@@ -43,39 +46,97 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
+
 function App() {
   const { register, handleSubmit, formState: { errors } } = useForm<Profile>()
   const classes = useStyles();
 
-
   const onSubmit = handleSubmit(async (data) => {
     alert(JSON.stringify(data))
-
-
-    const algodClient = new algosdk.Algodv2('', 'https://api.testnet.algoexplorer.io', '');
     const { Buffer } = buffer;
     if (!window.Buffer) window.Buffer = Buffer;
 
-    const myAlgoWallet = new MyAlgoConnect();
 
-    const params = await algodClient.getTransactionParams().do();
 
-    const accounts = await myAlgoWallet.connect();
-    const addresses = accounts.map(account => account.address);
+    const connector = new WalletConnect({
+      bridge: "https://bridge.walletconnect.org", // Required
+      qrcodeModal: QRCodeModal,
+    });
 
-    var sender = accounts[0].address;
+    // Check if connection is already established
+    if (!connector.connected) {
+      // create new session
+      connector.createSession();
+    }
+
+    // Subscribe to connection events
+    connector.on("connect", (error, payload) => {
+      if (error) {
+        throw error;
+      }
+
+      // Get provided accounts
+      const { accounts } = payload.params[0];
+    });
+
+    connector.on("session_update", (error, payload) => {
+      if (error) {
+        throw error;
+      }
+
+      // Get updated accounts 
+      const { accounts } = payload.params[0];
+    });
+
+    connector.on("disconnect", (error, payload) => {
+      if (error) {
+        throw error;
+      }
+    });
+
+    const algosdk = require('algosdk');
+    const baseServer = 'https://testnet-algorand.api.purestake.io/ps2'
+    const port = '';
+    const token = {'X-API-Key': ''}
+
+    const algodClient = new algosdk.Algodv2(token, baseServer, port);
+  
+    const suggestedParams = await algodClient.getTransactionParams().do();
+
+
     var amount = (parseInt(data.amount) * 1000000);
     var receiverAddr = data.receiverAddr;
     var note = undefined;
 
 
-    let txn = algosdk.makePaymentTxnWithSuggestedParams(sender, receiverAddr, amount, undefined, note, params);
+    const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+      from: "ENERB6J6SNGA5YF5NHBMBXUEQOOV5ZTX2Z2OZPSMI4MBVMAXIVUK7FE22E",
+      to: "BY7GB4KF7GGUGJA2OOG742SEUEW3WFBS6QTEDIQI4QTMEDJNBMX77MS3XM",
+      amount: 100000,
+      suggestedParams,
+    });
 
-    const signedTxn = await myAlgoWallet.signTransaction(txn.toByte());
+    const txns = [txn]
+    const txnsToSign = txns.map(txn => {
+    const encodedTxn = Buffer.from(algosdk.encodeUnsignedTransaction(txn)).toString("base64");
 
-    const response = await algodClient.sendRawTransaction(signedTxn.blob).do();
+      return {
+        txn: encodedTxn,
+        message: 'Description of transaction being signed',
+      };
+    });
 
-    console.log(response);
+    const requestParams = [txnsToSign];
+
+    const request = formatJsonRpcRequest("algo_signTxn", requestParams);
+    const result: Array<string | null> = await connector.sendCustomRequest(request);
+    const decodedResult = result.map(element => {
+      return element ? new Uint8Array(Buffer.from(element, "base64")) : null;
+    });
+
+    console.log(decodedResult)
+
+    connector.killSession();
 
   })
 
@@ -88,14 +149,12 @@ function App() {
         </Typography>
         <form className={classes.form} onSubmit={onSubmit}>
           <div>
-            {/* <label htmlFor="firstname">First Name</label> */}
             <TextField {...register("receiverAddr", { required: true })} name="receiverAddr" margin="normal" label="Receiver Address" autoFocus variant="outlined" fullWidth type="text" />
             {
               errors.receiverAddr && <div className="error"> Enter Receiver Address</div>
             }
           </div>
           <div>
-            {/* <label htmlFor="age">Age</label> */}
             <TextField {...register("amount", { required: true })} name="amount" label="Amount" margin="normal" variant="outlined" fullWidth type="text" />
             {
               errors.amount && <div className="error"> Enter amount </div>
